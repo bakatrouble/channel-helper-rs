@@ -1,15 +1,16 @@
-use std::error::Error;
-use std::sync::Arc;
-use chrono::Utc;
-use teloxide::{
-    prelude::*,
-    Bot
-};
-use teloxide::types::{InputFile, ReplyParameters};
 use crate::database::{Database, MediaType, Post, PostMessageId};
 use crate::utils::{download_file, image_hash};
+use chrono::Utc;
+use std::error::Error;
+use std::sync::Arc;
+use teloxide::types::{InputFile, ReplyParameters};
+use teloxide::{Bot, prelude::*};
 
-pub async fn handle_photo(bot: Bot, message: Message, db: Arc<Database>) -> Result<(), Box<dyn Error + Sync + Send>> {
+pub async fn handle_photo(
+    bot: Bot,
+    message: Message,
+    db: Arc<Database>,
+) -> Result<(), Box<dyn Error + Sync + Send>> {
     let reply_parameters = ReplyParameters::new(message.id);
 
     let file_meta = &message.photo().unwrap().last().unwrap().file;
@@ -19,7 +20,7 @@ pub async fn handle_photo(bot: Bot, message: Message, db: Arc<Database>) -> Resu
         Err(e) => {
             log::error!("Error fetching file: {e:?}");
             return Err(e.into());
-        },
+        }
     };
 
     let download_resp = match download_file(&file, bot.token()).await {
@@ -27,7 +28,7 @@ pub async fn handle_photo(bot: Bot, message: Message, db: Arc<Database>) -> Resu
         Err(e) => {
             log::error!("Error downloading photo: {e:?}");
             return Err(e.into());
-        },
+        }
     };
 
     let hash = image_hash(download_resp.bytes().await.unwrap().as_ref())?;
@@ -36,8 +37,11 @@ pub async fn handle_photo(bot: Bot, message: Message, db: Arc<Database>) -> Resu
         Ok(Some(post)) => {
             log::warn!("Hash {hash} already exists");
 
-            match db.add_message_id_for_post(post.id.unwrap(), PostMessageId::from(&message)).await {
-                Ok(_) => {},
+            match db
+                .add_message_id_for_post(post.id.unwrap(), PostMessageId::from(&message))
+                .await
+            {
+                Ok(_) => {}
                 Err(e) => {
                     log::error!("Error saving post message id: {e:?}");
                 }
@@ -47,27 +51,30 @@ pub async fn handle_photo(bot: Bot, message: Message, db: Arc<Database>) -> Resu
                 .send_photo(message.chat.id, InputFile::file_id(post.file_id.clone()))
                 .caption(format!("Duplicate from {}", post.added_datetime))
                 .reply_parameters(reply_parameters)
-                .await {
-
+                .await
+            {
                 Ok(msg) => {
                     log::info!("Sent duplicate notification");
 
-                    match db.add_message_id_for_post(post.id.unwrap(), PostMessageId::from(&msg)).await {
-                        Ok(_) => {},
+                    match db
+                        .add_message_id_for_post(post.id.unwrap(), PostMessageId::from(&msg))
+                        .await
+                    {
+                        Ok(_) => {}
                         Err(e) => {
                             log::error!("Error saving post message id: {e:?}");
                         }
                     }
-                },
+                }
                 Err(e) => {
                     log::error!("Error sending duplicate notification: {e:?}");
                     return Err(e.into());
-                },
+                }
             }
 
             return Ok(());
-        },
-        Ok(None) => {},
+        }
+        Ok(None) => {}
         Err(e) => {
             log::error!("Error checking hash presence: {e:?}");
             return Err(e.into());
@@ -78,12 +85,10 @@ pub async fn handle_photo(bot: Bot, message: Message, db: Arc<Database>) -> Resu
         id: None,
         media_type: MediaType::Photo,
         file_id: file.id.clone(),
-        message_ids: vec![
-            PostMessageId {
-                chat_id: message.chat.id.0,
-                message_id: message.id.0,
-            },
-        ],
+        message_ids: vec![PostMessageId {
+            chat_id: message.chat.id.0,
+            message_id: message.id.0,
+        }],
         sent: false,
         added_datetime: Utc::now().naive_utc(),
         image_hash: Some(hash),
@@ -91,7 +96,7 @@ pub async fn handle_photo(bot: Bot, message: Message, db: Arc<Database>) -> Resu
     match db.create_post(post).await {
         Ok(_) => {
             log::info!("Post saved");
-        },
+        }
         Err(e) => {
             log::error!("Error saving post: {e:?}");
         }

@@ -1,6 +1,6 @@
-use std::fmt::{Display, Formatter};
-use rusqlite::{Row};
+use rusqlite::Row;
 use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ValueRef};
+use std::fmt::{Display, Formatter};
 use teloxide::types::Message;
 use uuid::Uuid;
 
@@ -13,13 +13,11 @@ pub enum MediaType {
 
 impl Into<sea_query::Value> for MediaType {
     fn into(self) -> sea_query::Value {
-        sea_query::Value::String(
-            match self {
-                MediaType::Photo => Some(Box::new("photo".to_string())),
-                MediaType::Video => Some(Box::new("video".to_string())),
-                MediaType::Animation => Some(Box::new("anim".to_string())),
-            }
-        )
+        sea_query::Value::String(match self {
+            MediaType::Photo => Some(Box::new("photo".to_string())),
+            MediaType::Video => Some(Box::new("video".to_string())),
+            MediaType::Animation => Some(Box::new("anim".to_string())),
+        })
     }
 }
 

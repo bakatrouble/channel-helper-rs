@@ -1,26 +1,25 @@
-use std::io::Cursor;
-use std::sync::Arc;
-use axum::{Json, Router};
+use crate::config::Config;
+use crate::database::{Database, MediaType, UploadTask};
+use crate::utils::image_hash;
 use axum::extract::State;
 use axum::routing::post;
+use axum::{Json, Router};
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use image::ImageFormat;
 use image::imageops::FilterType;
 use reqwest::StatusCode;
-use tokio::net::TcpListener;
 use serde::{Deserialize, Serialize};
-use crate::config::Config;
-use crate::database::{Database, MediaType, UploadTask};
-use crate::utils::{image_hash};
+use std::io::Cursor;
+use std::sync::Arc;
+use tokio::net::TcpListener;
 
 pub async fn run_server(cfg: Config, db: Arc<Database>) -> anyhow::Result<()> {
     let app = Router::new()
         .route("/post_photo", post(post_photo))
         .with_state(db);
 
-    let listener = TcpListener::bind(format!("0.0.0.0:{}", cfg.api_port.unwrap()))
-        .await?;
+    let listener = TcpListener::bind(format!("0.0.0.0:{}", cfg.api_port.unwrap())).await?;
     axum::serve(listener, app).await?;
 
     Ok(())
@@ -67,28 +66,24 @@ async fn post_photo(
     Json(payload): Json<PostPhoto>,
 ) -> (StatusCode, Json<PostPhotoResponse>) {
     macro_rules! post_photo_error {
-        ($f:expr, $dup:expr) => {
-            {
-                log::error!($f);
-                (
-                    StatusCode::BAD_REQUEST,
-                    Json(PostPhotoResponse::Err(PostPhotoResponseError {
-                        success: false,
-                        duplicate: $dup,
-                        reason: format!($f),
-                    }))
-                )
-            }
-        }
+        ($f:expr, $dup:expr) => {{
+            log::error!($f);
+            (
+                StatusCode::BAD_REQUEST,
+                Json(PostPhotoResponse::Err(PostPhotoResponseError {
+                    success: false,
+                    duplicate: $dup,
+                    reason: format!($f),
+                })),
+            )
+        }};
     }
 
     let mut photo = match payload {
-        PostPhoto::Base64(body) => {
-            match BASE64_STANDARD.decode(body.base64) {
-                Ok(v) => v,
-                Err(e) => {
-                    return post_photo_error!("Base64 decode error: {e:?}", false);
-                }
+        PostPhoto::Base64(body) => match BASE64_STANDARD.decode(body.base64) {
+            Ok(v) => v,
+            Err(e) => {
+                return post_photo_error!("Base64 decode error: {e:?}", false);
             }
         },
         PostPhoto::Url(body) => {
@@ -104,7 +99,7 @@ async fn post_photo(
                     return post_photo_error!("Image download error: {e:?}", false);
                 }
             }
-        },
+        }
     };
     let hash = match image_hash(photo.as_slice()) {
         Ok(v) => v,
@@ -114,18 +109,20 @@ async fn post_photo(
     };
 
     match db.post_with_hash_exists(hash.clone()).await {
-        Ok(false) => {},
+        Ok(false) => {}
         Ok(true) => {
             return post_photo_error!("Hash {hash} already exists", true);
-        },
+        }
         Err(e) => {
             return post_photo_error!("Database error: {e:?}", false);
-        },
+        }
     }
 
-    image::load_from_memory(photo.as_slice()).unwrap()
+    image::load_from_memory(photo.as_slice())
+        .unwrap()
         .resize(2000, 2000, FilterType::Lanczos3)
-        .write_to(&mut Cursor::new(photo.as_mut_slice()), ImageFormat::Jpeg).unwrap();
+        .write_to(&mut Cursor::new(photo.as_mut_slice()), ImageFormat::Jpeg)
+        .unwrap();
 
     let upload_task = UploadTask {
         id: None,
@@ -136,16 +133,14 @@ async fn post_photo(
     };
 
     match db.create_upload_task(upload_task).await {
-        Ok(_) => {
-            (
-                StatusCode::OK,
-                Json(PostPhotoResponse::Ok(PostPhotoResponseSuccess {
-                    success: true,
-                }))
-            )
-        },
+        Ok(_) => (
+            StatusCode::OK,
+            Json(PostPhotoResponse::Ok(PostPhotoResponseSuccess {
+                success: true,
+            })),
+        ),
         Err(e) => {
             post_photo_error!("Database error: {e:?}", false)
-        },
+        }
     }
 }

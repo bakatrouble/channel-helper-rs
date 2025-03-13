@@ -1,5 +1,5 @@
-use sea_query::{ColumnDef, ForeignKey, Index, SqliteQueryBuilder, Table};
 use crate::database::schema::{Post, PostMessageIds, State, UploadTask};
+use sea_query::{ColumnDef, ForeignKey, Index, SqliteQueryBuilder, Table};
 
 pub fn get_migrations() -> Vec<String> {
     vec![
@@ -29,13 +29,18 @@ pub fn get_migrations() -> Vec<String> {
                 .table(Post::Table)
                 .col(Post::ImageHash)
                 .build(SqliteQueryBuilder),
-        ].join("; "),
-
+        ]
+        .join("; "),
         // create UploadTask table and indices
         vec![
             Table::create()
                 .table(UploadTask::Table)
-                .col(ColumnDef::new(UploadTask::Id).uuid().not_null().primary_key())
+                .col(
+                    ColumnDef::new(UploadTask::Id)
+                        .uuid()
+                        .not_null()
+                        .primary_key(),
+                )
                 .col(ColumnDef::new(UploadTask::MediaType).text().not_null())
                 .col(ColumnDef::new(UploadTask::Data).blob().not_null())
                 .col(ColumnDef::new(UploadTask::Processed).boolean().not_null())
@@ -46,19 +51,27 @@ pub fn get_migrations() -> Vec<String> {
                 .table(UploadTask::Table)
                 .col(UploadTask::Processed)
                 .build(SqliteQueryBuilder),
-        ].join("; "),
-
+        ]
+        .join("; "),
         // create PostMessageIds table and indices
         vec![
             Table::create()
                 .table(PostMessageIds::Table)
-                .col(ColumnDef::new(PostMessageIds::ChatId).big_integer().not_null())
-                .col(ColumnDef::new(PostMessageIds::MessageId).integer().not_null())
+                .col(
+                    ColumnDef::new(PostMessageIds::ChatId)
+                        .big_integer()
+                        .not_null(),
+                )
+                .col(
+                    ColumnDef::new(PostMessageIds::MessageId)
+                        .integer()
+                        .not_null(),
+                )
                 .col(ColumnDef::new(PostMessageIds::PostId).uuid().not_null())
                 .foreign_key(
                     ForeignKey::create()
                         .from(PostMessageIds::Table, PostMessageIds::PostId)
-                        .to(Post::Table, Post::Id)
+                        .to(Post::Table, Post::Id),
                 )
                 .build(SqliteQueryBuilder),
             Index::create()
@@ -68,14 +81,15 @@ pub fn get_migrations() -> Vec<String> {
                 .col(PostMessageIds::ChatId)
                 .col(PostMessageIds::MessageId)
                 .build(SqliteQueryBuilder),
-        ].join("; "),
-
+        ]
+        .join("; "),
         // create State table
         vec![
             Table::create()
                 .table(State::Table)
                 .col(ColumnDef::new(State::LastSent).date_time().not_null())
                 .build(SqliteQueryBuilder),
-        ].join("; "),
+        ]
+        .join("; "),
     ]
 }

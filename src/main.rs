@@ -1,15 +1,15 @@
-mod telegram_handlers;
-mod database;
-mod utils;
 mod cli;
 mod config;
+mod database;
+mod telegram_handlers;
+mod utils;
 mod workers;
 
-use std::sync::Arc;
-use dotenvy::dotenv;
-use teloxide::prelude::*;
 use crate::database::Database;
 use crate::workers::{run_bot, run_sender, run_server, run_uploader};
+use dotenvy::dotenv;
+use std::sync::Arc;
+use teloxide::prelude::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
