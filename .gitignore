@@ -1,0 +1,5 @@
+/target
+/dbs/*
+!.gitkeep
+/.env
+/.idea
