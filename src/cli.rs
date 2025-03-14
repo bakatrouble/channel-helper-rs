@@ -33,11 +33,18 @@ pub fn parse_args() -> Config {
                 .required(true),
         )
         .arg(
-            arg!(-i - -interval)
+            arg!(-i --interval)
                 .id("interval")
                 .env("INTERVAL")
                 .value_parser(humantime::parse_duration)
                 .required(true),
+        )
+        .arg(
+            arg!(-g --"group-threshold")
+                .id("group_threshold")
+                .env("GROUP_THRESHOLD")
+                .value_parser(value_parser!(u32))
+                .required(false)
         )
         .arg(
             arg!(-w - -api)
@@ -71,6 +78,7 @@ pub fn parse_args() -> Config {
         .map(|v| v.parse().unwrap())
         .collect();
     let interval = matches.get_one::<Duration>("interval").unwrap();
+    let group_threshold = matches.get_one::<u32>("group_threshold").unwrap_or(&0);
     let with_api = matches.get_one::<bool>("with_api").unwrap();
     let api_port = matches.get_one::<u16>("api_port");
     let upload_chat_id = matches.get_one::<i64>("upload_chat_id");
@@ -80,6 +88,7 @@ pub fn parse_args() -> Config {
         admin_id: admin_id.clone(),
         allowed_sender_chats,
         interval: interval.clone(),
+        group_threshold: group_threshold.clone(),
         with_api: with_api.clone(),
         api_port: api_port.map(|v| *v).clone(),
         upload_chat_id: upload_chat_id.map(|v| *v).clone(),

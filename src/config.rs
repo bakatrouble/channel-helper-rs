@@ -7,6 +7,7 @@ pub struct Config {
     pub admin_id: i64,
     pub allowed_sender_chats: Vec<i64>,
     pub interval: Duration,
+    pub group_threshold: u32,
     pub with_api: bool,
     pub api_port: Option<u16>,
     pub upload_chat_id: Option<i64>,
