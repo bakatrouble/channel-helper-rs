@@ -24,3 +24,7 @@ diesel = { version = "2.2.8", features = ["sqlite", "returning_clauses_for_sqlit
 diesel_migrations = { version = "2.2.0", features = ["sqlite"] }
 tower-http = { version = "0.6.2", features = ["cors"] }
 tower = "0.5.2"
+pre-commit-hooks = "0.3.0"
+
+[package.metadata.precommit]
+fmt = "cargo fmt"
