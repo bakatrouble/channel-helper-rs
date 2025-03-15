@@ -50,7 +50,7 @@ impl From<Uuid> for UUID {
     }
 }
 
-#[derive(Debug, FromSqlRow, AsExpression)]
+#[derive(Debug, FromSqlRow, AsExpression, PartialEq, Clone)]
 #[diesel(sql_type = Text)]
 pub enum MediaType {
     Photo,
@@ -99,7 +99,7 @@ impl Display for MediaType {
     }
 }
 
-#[derive(Queryable, Selectable, Insertable)]
+#[derive(Queryable, Selectable, Insertable, Clone)]
 #[diesel(table_name = crate::database::schema::posts)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct Post {
@@ -111,6 +111,12 @@ pub struct Post {
     pub created_datetime: NaiveDateTime,
     pub sent_datetime: Option<NaiveDateTime>,
     pub image_hash: Option<String>,
+}
+
+impl Post {
+    pub fn is_photo(&self) -> bool {
+        self.media_type == MediaType::Photo
+    }
 }
 
 #[derive(Queryable, Selectable, Insertable)]

@@ -1,6 +1,6 @@
 use std::sync::{Arc};
 use chrono::Utc;
-use diesel::dsl::exists;
+use diesel::dsl::{exists};
 use diesel::prelude::*;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use tokio::sync::{Notify, Mutex};
@@ -13,6 +13,7 @@ pub use models::{MediaType, Post, UploadTask, PostMessageId};
 use crate::database::models::UUID;
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
+define_sql_function!(fn random() -> Text);
 
 pub struct Database {
     conn: Arc<Mutex<SqliteConnection>>,
@@ -165,6 +166,74 @@ impl Database {
                 ))
                 .execute(conn)
                 .expect("error marking upload task as complete");
+            Ok(())
+        })
+    }
+
+    pub async fn unsent_posts_count(&self) -> anyhow::Result<i64> {
+        use crate::database::schema::posts::dsl::{posts, is_sent};
+
+        self.conn.lock().await.transaction(|conn| {
+            Ok(
+                posts
+                    .filter(is_sent.eq(false))
+                    .count()
+                    .get_result(conn)
+                    .expect("error getting unsent posts count")
+            )
+        })
+    }
+
+    pub async fn fetch_unsent_post(&self) -> anyhow::Result<Option<Post>> {
+        use crate::database::schema::posts::dsl::{posts, is_sent};
+
+        self.conn.lock().await.transaction(|conn| {
+            Ok(
+                posts
+                    .filter(is_sent.eq(false))
+                    .limit(1)
+                    .order_by(random())
+                    .select(Post::as_select())
+                    .load(conn)
+                    .expect("error fetching unsent post")
+                    .pop()
+            )
+        })
+    }
+
+    pub async fn fetch_ten_unsent_photo_posts(&self) -> anyhow::Result<Vec<Post>> {
+        use crate::database::schema::posts::dsl::{posts, is_sent, media_type};
+
+        self.conn.lock().await.transaction(|conn| {
+            Ok(
+                posts
+                    .filter(
+                        is_sent.eq(false)
+                            .and(media_type.eq(MediaType::Photo))
+                    )
+                    .limit(10)
+                    .order_by(random())
+                    .select(Post::as_select())
+                    .load(conn)
+                    .expect("error fetching unsent photo posts")
+            )
+        })
+    }
+
+    pub async fn mark_sent_posts<T>(&self, ids: T) -> anyhow::Result<()>
+    where
+        T: IntoIterator<Item = Uuid>
+    {
+        use crate::database::schema::posts::dsl::{posts, id, is_sent, sent_datetime};
+
+        self.conn.lock().await.transaction(|conn| {
+            diesel::update(posts.filter(id.eq_any(ids.into_iter().map(|v| UUID::from(v)))))
+                .set((
+                    is_sent.eq(true),
+                    sent_datetime.eq(Utc::now().naive_utc())
+                ))
+                .execute(conn)
+                .expect("error marking post as sent");
             Ok(())
         })
     }

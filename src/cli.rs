@@ -19,6 +19,13 @@ pub fn parse_args() -> Config {
                 .required(true),
         )
         .arg(
+            arg!(-c --"chat-id" <TARGET_CHAT_ID>)
+                .id("target_chat_id")
+                .env("TARGET_CHAT_ID")
+                .value_parser(value_parser!(i64))
+                .required(true),
+        )
+        .arg(
             arg!(-a --admin <ADMIN_ID>)
                 .id("admin_id")
                 .env("ADMIN_ID")
@@ -44,7 +51,7 @@ pub fn parse_args() -> Config {
                 .id("group_threshold")
                 .env("GROUP_THRESHOLD")
                 .action(ArgAction::Set)
-                .value_parser(value_parser!(u32))
+                .value_parser(value_parser!(i64))
                 .required(false),
         )
         .arg(
@@ -73,6 +80,7 @@ pub fn parse_args() -> Config {
         .get_matches();
     let bot_token = matches.get_one::<String>("bot_token").unwrap();
     let db_name = matches.get_one::<String>("db_name").unwrap();
+    let target_chat_id = matches.get_one::<i64>("target_chat_id").unwrap();
     let admin_id = matches.get_one::<i64>("admin_id").unwrap();
     let allowed_sender_chats: Vec<i64> = matches
         .get_many::<String>("allowed_senders")
@@ -80,17 +88,18 @@ pub fn parse_args() -> Config {
         .map(|v| v.parse().unwrap())
         .collect();
     let interval = matches.get_one::<Duration>("interval").unwrap();
-    let group_threshold = matches.get_one::<u32>("group_threshold");
+    let group_threshold = matches.get_one::<i64>("group_threshold");
     let with_api = matches.get_one::<bool>("with_api").unwrap();
     let api_port = matches.get_one::<u16>("api_port");
     let upload_chat_id = matches.get_one::<i64>("upload_chat_id");
     Config {
         bot_token: bot_token.clone(),
         db_name: db_name.clone(),
+        target_chat_id: target_chat_id.clone(),
         admin_id: admin_id.clone(),
         allowed_sender_chats,
         interval: interval.clone(),
-        group_threshold: group_threshold.map(|v| *v).clone(),
+        group_threshold: group_threshold.map(|v| *v).unwrap_or(0),
         with_api: with_api.clone(),
         api_port: api_port.map(|v| *v).clone(),
         upload_chat_id: upload_chat_id.map(|v| *v).clone(),
