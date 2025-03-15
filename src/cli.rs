@@ -43,14 +43,16 @@ pub fn parse_args() -> Config {
             arg!(-g --"group-threshold")
                 .id("group_threshold")
                 .env("GROUP_THRESHOLD")
+                .action(ArgAction::Set)
                 .value_parser(value_parser!(u32))
-                .required(false)
+                .required(false),
         )
         .arg(
             arg!(-w - -api)
                 .id("with_api")
                 .env("WITH_API")
                 .action(ArgAction::SetTrue)
+                .required(false)
                 .requires("api_port")
                 .requires("upload_chat_id"),
         )
@@ -78,7 +80,7 @@ pub fn parse_args() -> Config {
         .map(|v| v.parse().unwrap())
         .collect();
     let interval = matches.get_one::<Duration>("interval").unwrap();
-    let group_threshold = matches.get_one::<u32>("group_threshold").unwrap_or(&0);
+    let group_threshold = matches.get_one::<u32>("group_threshold");
     let with_api = matches.get_one::<bool>("with_api").unwrap();
     let api_port = matches.get_one::<u16>("api_port");
     let upload_chat_id = matches.get_one::<i64>("upload_chat_id");
@@ -88,7 +90,7 @@ pub fn parse_args() -> Config {
         admin_id: admin_id.clone(),
         allowed_sender_chats,
         interval: interval.clone(),
-        group_threshold: group_threshold.clone(),
+        group_threshold: group_threshold.map(|v| *v).clone(),
         with_api: with_api.clone(),
         api_port: api_port.map(|v| *v).clone(),
         upload_chat_id: upload_chat_id.map(|v| *v).clone(),

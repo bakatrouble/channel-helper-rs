@@ -1,9 +1,8 @@
-use crate::database::{Database, MediaType, Post, PostMessageId};
+use crate::database::{Database, MediaType};
 use crate::utils::{download_file, image_hash};
-use chrono::Utc;
 use std::error::Error;
 use std::sync::Arc;
-use teloxide::types::{InputFile, ReplyParameters};
+use teloxide::types::{InputFile, ReactionType, ReplyParameters};
 use teloxide::{Bot, prelude::*};
 
 pub async fn handle_photo(
@@ -38,7 +37,7 @@ pub async fn handle_photo(
             log::warn!("Hash {hash} already exists");
 
             match db
-                .add_message_id_for_post(post.id.unwrap(), PostMessageId::from(&message))
+                .add_message_id_for_post(post.id, message.chat.id.0, message.id.0)
                 .await
             {
                 Ok(_) => {}
@@ -49,7 +48,7 @@ pub async fn handle_photo(
 
             match bot
                 .send_photo(message.chat.id, InputFile::file_id(post.file_id.clone()))
-                .caption(format!("Duplicate from {}", post.added_datetime))
+                .caption(format!("Duplicate from {}", post.created_datetime))
                 .reply_parameters(reply_parameters)
                 .await
             {
@@ -57,7 +56,7 @@ pub async fn handle_photo(
                     log::info!("Sent duplicate notification");
 
                     match db
-                        .add_message_id_for_post(post.id.unwrap(), PostMessageId::from(&msg))
+                        .add_message_id_for_post(post.id, msg.chat.id.0, msg.id.0)
                         .await
                     {
                         Ok(_) => {}
@@ -81,26 +80,28 @@ pub async fn handle_photo(
         }
     }
 
-    let post = Post {
-        id: None,
-        media_type: MediaType::Photo,
-        file_id: file.id.clone(),
-        message_ids: vec![PostMessageId {
-            chat_id: message.chat.id.0,
-            message_id: message.id.0,
-        }],
-        sent: false,
-        added_datetime: Utc::now().naive_utc(),
-        image_hash: Some(hash),
-    };
-    match db.create_post(post).await {
+    let create_post_future = db.create_post(
+        None,
+        MediaType::Photo,
+        file_meta.id.clone(),
+        Some(hash.clone()),
+        message.chat.id.0,
+        message.id.0,
+    );
+    match create_post_future.await {
         Ok(_) => {
             log::info!("Post saved");
+
+            bot.set_message_reaction(message.chat.id, message.id)
+                .reaction(vec![ReactionType::Emoji {
+                    emoji: "👍".to_string(),
+                }])
+                .await?;
         }
         Err(e) => {
             log::error!("Error saving post: {e:?}");
         }
-    }
+    };
 
     Ok(())
 }

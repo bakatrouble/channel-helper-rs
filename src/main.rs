@@ -20,7 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("Initializing...");
 
     let db_path = format!("dbs/{}.sqlite3", &cfg.db_name);
-    let db = Arc::new(Database::open(&db_path).await?);
+    let db = Arc::new(Database::open(&db_path)?);
 
     let bot = Bot::new(&cfg.bot_token);
 

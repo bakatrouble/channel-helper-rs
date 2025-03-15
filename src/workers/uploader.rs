@@ -1,6 +1,5 @@
 use crate::config::Config;
-use crate::database::{Database, MediaType, Post, PostMessageId, UploadTask};
-use chrono::Utc;
+use crate::database::{Database, MediaType, UploadTask};
 use std::sync::Arc;
 use teloxide::RequestError;
 use teloxide::prelude::*;
@@ -71,7 +70,7 @@ async fn upload(bot: Bot, chat_id: i64, db: Arc<Database>, upload_task: UploadTa
                 .await
             {
                 Ok(true) => {
-                    match db.mark_complete_upload_task(&upload_task).await {
+                    match db.mark_complete_upload_task(upload_task.id).await {
                         Ok(_) => {}
                         Err(e) => log::error!("Database error: {e:?}"),
                     }
@@ -85,16 +84,14 @@ async fn upload(bot: Bot, chat_id: i64, db: Arc<Database>, upload_task: UploadTa
             }
 
             match db
-                .create_post(Post {
-                    id: Some(post_id),
-                    media_type: MediaType::Photo,
-                    file_id: file_meta.id.clone(),
-                    message_ids: vec![PostMessageId::from(&msg)],
-                    sent: false,
-                    added_datetime: Utc::now().naive_utc(),
-                    image_hash: Some(upload_task.image_hash.clone().unwrap()),
-                })
-                .await
+                .create_post(
+                    Some(post_id),
+                    MediaType::Photo,
+                    file_meta.id.clone(),
+                    Some(upload_task.image_hash.clone().unwrap()),
+                    msg.chat.id.0,
+                    msg.id.0,
+                ).await
             {
                 Ok(_) => {}
                 Err(e) => {
@@ -103,7 +100,7 @@ async fn upload(bot: Bot, chat_id: i64, db: Arc<Database>, upload_task: UploadTa
                 }
             }
 
-            match db.mark_complete_upload_task(&upload_task).await {
+            match db.mark_complete_upload_task(upload_task.id).await {
                 Ok(_) => log::info!("Uploaded a photo"),
                 Err(e) => log::error!("Database error: {e:?}"),
             }
@@ -112,8 +109,8 @@ async fn upload(bot: Bot, chat_id: i64, db: Arc<Database>, upload_task: UploadTa
         //
         // },
         _ => {
-            log::warn!("Unsupported media type: {}", &upload_task.media_type);
-            match db.mark_complete_upload_task(&upload_task).await {
+            log::warn!("Unsupported media type: {}", upload_task.media_type);
+            match db.mark_complete_upload_task(upload_task.id).await {
                 Ok(_) => {}
                 Err(e) => log::error!("Database error: {e:?}"),
             }

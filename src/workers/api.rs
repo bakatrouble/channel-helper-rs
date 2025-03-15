@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::database::{Database, MediaType, UploadTask};
+use crate::database::{Database, MediaType};
 use crate::utils::image_hash;
 use axum::extract::State;
 use axum::routing::post;
@@ -124,15 +124,7 @@ async fn post_photo(
         .write_to(&mut Cursor::new(photo.as_mut_slice()), ImageFormat::Jpeg)
         .unwrap();
 
-    let upload_task = UploadTask {
-        id: None,
-        media_type: MediaType::Photo,
-        data: photo,
-        processed: false,
-        image_hash: Some(hash),
-    };
-
-    match db.create_upload_task(upload_task).await {
+    match db.create_upload_task(MediaType::Photo, photo, Some(hash)).await {
         Ok(_) => (
             StatusCode::OK,
             Json(PostMediaResponse::Ok(PostMediaResponseSuccess {

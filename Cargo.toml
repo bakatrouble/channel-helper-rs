@@ -13,15 +13,12 @@ reqwest = "0.12.12"
 image = "0.24.8"
 imghash = "1.3.1"
 uuid = { version = "1.15.1", features = ["v7"] }
-rusqlite = { version = "^0.32.1", features = ["uuid", "time", "blob", "chrono"] }
 anyhow = "1.0.97"
 chrono = "0.4.40"
-sea-query = { version = "0.32.2", features = ["with-chrono", "with-uuid"] }
-sea-query-rusqlite = { version = "0.7.0", features = ["with-chrono", "with-uuid"] }
-rusqlite_migration = "1.3.1"
-tokio-rusqlite = "0.6.0"
 clap = { version = "4.5.32", features = ["derive", "env"] }
 axum = { version = "0.8.1", features = ["json"] }
 serde = { version = "1.0.219", features = ["derive"] }
 base64 = "0.22.1"
 humantime = "2.2.0"
+diesel = { version = "2.2.8", features = ["sqlite", "returning_clauses_for_sqlite_3_35", "uuid", "time", "chrono"] }
+diesel_migrations = { version = "2.2.0", features = ["sqlite"] }

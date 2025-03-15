@@ -1,334 +1,171 @@
-mod migrations;
-mod models;
-mod schema;
-
-use sea_query::{Alias, Expr, Query, SqliteQueryBuilder};
-use sea_query_rusqlite::RusqliteBinder;
-use tokio::sync::Notify;
-use tokio_rusqlite::Connection;
-
-use crate::database::migrations::get_migrations;
-use crate::database::schema::{
-    Post as PostSchema, PostMessageIds as PostMessageIdsSchema, UploadTask as UploadTaskSchema,
-};
-pub use models::{MediaType, Post, PostMessageId, UploadTask};
+use std::sync::{Arc};
+use chrono::Utc;
+use diesel::dsl::exists;
+use diesel::prelude::*;
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use tokio::sync::{Notify, Mutex};
 use uuid::Uuid;
 
-#[derive(Debug)]
+mod schema;
+mod models;
+
+pub use models::{MediaType, Post, UploadTask, PostMessageId};
+use crate::database::models::UUID;
+
+pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
+
 pub struct Database {
-    pub conn: Connection,
+    conn: Arc<Mutex<SqliteConnection>>,
     pub upload_task_added: Notify,
 }
 
 impl Database {
-    pub async fn open(path: &String) -> anyhow::Result<Self> {
-        Database::migrate(path)?;
+    pub fn open(db_name: &str) -> anyhow::Result<Self> {
+        let mut conn = SqliteConnection::establish(db_name)?;
+        conn.run_pending_migrations(MIGRATIONS).expect("Unable to apply migrations");
 
-        let conn = Connection::open(path).await?;
-        Ok(Database {
-            conn,
+        Ok(Self {
+            conn: Arc::new(Mutex::new(conn)),
             upload_task_added: Notify::new(),
         })
     }
 
-    pub fn migrate(path: &String) -> anyhow::Result<(), rusqlite_migration::Error> {
-        use rusqlite::Connection;
-        use rusqlite_migration::{M, Migrations};
-        let mut db = Connection::open(path)?;
-        let migrations_str = get_migrations();
-        let migrations = migrations_str.iter().map(|e| M::up(e.as_str())).collect();
-        Migrations::new(migrations).to_latest(&mut db)?;
-        Ok(())
-    }
+    pub async fn create_post(&self, id: Option<Uuid>, media_type: MediaType, file_id: String, image_hash: Option<String>, chat_id: i64, message_id: i32) -> anyhow::Result<Post> {
+        use crate::database::schema::{posts, post_message_ids};
 
-    pub async fn create_post(&self, post: Post) -> anyhow::Result<()> {
-        self.conn
-            .call(move |conn| {
-                let transaction = conn.transaction()?;
+        let post_id = id.unwrap_or(Uuid::now_v7());
 
-                let id = post.id.unwrap_or_else(|| Uuid::now_v7());
+        let new_post = Post {
+            id: post_id,
+            media_type,
+            file_id,
+            is_sent: false,
+            created_datetime: Utc::now().naive_utc(),
+            sent_datetime: None,
+            image_hash,
+        };
 
-                let (sql, values) = Query::insert()
-                    .into_table(PostSchema::Table)
-                    .columns([
-                        PostSchema::Id,
-                        PostSchema::MediaType,
-                        PostSchema::FileId,
-                        PostSchema::Sent,
-                        PostSchema::AddedDatetime,
-                        PostSchema::ImageHash,
-                    ])
-                    .values_panic([
-                        id.into(),
-                        post.media_type.into(),
-                        post.file_id.into(),
-                        post.sent.into(),
-                        post.added_datetime.into(),
-                        post.image_hash.into(),
-                    ])
-                    .build_rusqlite(SqliteQueryBuilder);
-                transaction.execute(sql.as_str(), &*values.as_params())?;
+        let new_message_id = PostMessageId {
+            chat_id,
+            message_id,
+            post_id,
+        };
 
-                let mut statement = Query::insert();
-                let mut query_builder =
-                    statement.into_table(PostMessageIdsSchema::Table).columns([
-                        PostMessageIdsSchema::ChatId,
-                        PostMessageIdsSchema::MessageId,
-                        PostMessageIdsSchema::PostId,
-                    ]);
+        self.conn.lock().await.transaction(|conn| {
+            let post = diesel::insert_into(posts::table)
+                .values(new_post)
+                .returning(Post::as_returning())
+                .get_result(conn)
+                .expect("error saving new post");
 
-                for message_id in post.message_ids {
-                    query_builder = query_builder.values_panic([
-                        message_id.chat_id.into(),
-                        message_id.message_id.into(),
-                        id.into(),
-                    ])
-                }
+            diesel::insert_into(post_message_ids::table)
+                .values(new_message_id)
+                .execute(conn)
+                .expect("error saving message id");
 
-                let (sql, values) = query_builder.build_rusqlite(SqliteQueryBuilder);
-                transaction.execute(sql.as_str(), &*values.as_params())?;
-
-                transaction.commit()?;
-
-                Ok(())
-            })
-            .await?;
-        Ok(())
-    }
-
-    pub async fn add_message_id_for_post(
-        &self,
-        post_id: Uuid,
-        message_id: PostMessageId,
-    ) -> anyhow::Result<()> {
-        self.conn
-            .call(move |conn| {
-                let (sql, values) = Query::insert()
-                    .into_table(PostMessageIdsSchema::Table)
-                    .columns([
-                        PostMessageIdsSchema::ChatId,
-                        PostMessageIdsSchema::MessageId,
-                        PostMessageIdsSchema::PostId,
-                    ])
-                    .values_panic([
-                        message_id.chat_id.into(),
-                        message_id.message_id.into(),
-                        post_id.into(),
-                    ])
-                    .build_rusqlite(SqliteQueryBuilder);
-
-                conn.execute(sql.as_str(), &*values.as_params())?;
-                Ok(())
-            })
-            .await?;
-        Ok(())
+            Ok(post)
+        })
     }
 
     pub async fn get_post_by_hash(&self, hash: String) -> anyhow::Result<Option<Post>> {
-        Ok(self
-            .conn
-            .call(move |conn| {
-                let (sql, values) = Query::select()
-                    .columns([
-                        PostSchema::Id,
-                        PostSchema::MediaType,
-                        PostSchema::FileId,
-                        PostSchema::Sent,
-                        PostSchema::AddedDatetime,
-                        PostSchema::ImageHash,
-                    ])
-                    .expr_as(
-                        Expr::col((PostMessageIdsSchema::Table, PostMessageIdsSchema::ChatId)),
-                        Alias::new("chat_id"),
-                    )
-                    .column((PostMessageIdsSchema::Table, PostMessageIdsSchema::ChatId))
-                    .expr_as(
-                        Expr::col((PostMessageIdsSchema::Table, PostMessageIdsSchema::MessageId)),
-                        Alias::new("message_id"),
-                    )
-                    .from(PostSchema::Table)
-                    .left_join(
-                        PostMessageIdsSchema::Table,
-                        Expr::col(PostMessageIdsSchema::PostId).eq(Expr::col(PostSchema::Id)),
-                    )
-                    .cond_where(Expr::col(PostSchema::ImageHash).eq(hash))
-                    .build_rusqlite(SqliteQueryBuilder);
-                let mut stmt = conn.prepare(sql.as_str())?;
-                let mut rows = stmt.query(&*values.as_params())?;
-                Ok(match rows.next()? {
-                    Some(row) => {
-                        let mut post = Post::from(row);
-                        post.message_ids.push(PostMessageId::from(row));
-                        while let Some(row) = rows.next().unwrap() {
-                            post.message_ids.push(PostMessageId::from(row));
-                        }
-                        Some(post)
-                    }
-                    None => None,
-                })
-            })
-            .await?)
+        use crate::database::schema::posts::dsl::{posts, image_hash};
+
+        self.conn.lock().await.transaction(|conn| {
+            Ok(
+                posts
+                    .filter(image_hash.eq(hash))
+                    .limit(1)
+                    .select(Post::as_select())
+                    .load(conn)
+                    .expect("error fetching post")
+                    .pop()
+            )
+        })
+    }
+
+    pub async fn add_message_id_for_post(&self, post_id: Uuid, chat_id: i64, message_id: i32) -> anyhow::Result<()> {
+        use crate::database::schema::{post_message_ids};
+
+        let new_post_message_id = PostMessageId {
+            chat_id,
+            message_id,
+            post_id,
+        };
+
+        self.conn.lock().await.transaction(|conn| {
+            diesel::insert_into(post_message_ids::table)
+                .values(new_post_message_id)
+                .execute(conn)
+                .expect("error saving message id");
+
+            Ok(())
+        })
     }
 
     pub async fn post_with_hash_exists(&self, hash: String) -> anyhow::Result<bool> {
-        Ok(self
-            .conn
-            .call(move |conn| {
-                let (sql, values) = Query::select()
-                    .expr(Expr::exists(
-                        Query::select()
-                            .expr(Expr::value(1))
-                            .from(PostSchema::Table)
-                            .cond_where(Expr::col(PostSchema::ImageHash).eq(hash))
-                            .limit(1)
-                            .take(),
-                    ))
-                    .build_rusqlite(SqliteQueryBuilder);
-                Ok(conn.query_row(sql.as_str(), &*values.as_params(), |row| row.get(0))?)
-            })
-            .await?)
+        use crate::database::schema::posts::dsl::{posts, image_hash};
+
+        self.conn.lock().await.transaction(|conn| {
+            Ok(
+                diesel::select(exists(posts.filter(image_hash.eq(hash))))
+                    .get_result::<bool>(conn)
+                    .expect("error checking hash existence")
+            )
+        })
     }
 
-    pub async fn mark_sent_post(&self, post: Post) -> anyhow::Result<()> {
-        self.conn
-            .call(move |conn| {
-                let (sql, values) = Query::update()
-                    .table(PostSchema::Table)
-                    .values([(PostSchema::Sent, true.into())])
-                    .cond_where(Expr::col(PostSchema::Id).eq(post.id.unwrap()))
-                    .build_rusqlite(SqliteQueryBuilder);
+    pub async fn create_upload_task(&self, media_type: MediaType, data: Vec<u8>, image_hash: Option<String>) -> anyhow::Result<UploadTask> {
+        use crate::database::schema::{upload_tasks};
 
-                conn.execute(sql.as_str(), &*values.as_params())?;
-                Ok(())
-            })
-            .await?;
-        Ok(())
-    }
+        let new_post = UploadTask {
+            id: Uuid::now_v7(),
+            media_type,
+            data,
+            is_processed: false,
+            created_datetime: Utc::now().naive_utc(),
+            processed_datetime: None,
+            image_hash,
+        };
 
-    pub async fn fetch_unsent_post(&self) -> anyhow::Result<Option<Post>> {
-        Ok(self
-            .conn
-            .call(move |conn| {
-                let (sql, values) = Query::select()
-                    .columns([
-                        PostSchema::Id,
-                        PostSchema::MediaType,
-                        PostSchema::FileId,
-                        PostSchema::Sent,
-                        PostSchema::AddedDatetime,
-                        PostSchema::ImageHash,
-                    ])
-                    .from(PostSchema::Table)
-                    .cond_where(Expr::col(PostSchema::Sent).eq(false))
-                    .build_rusqlite(SqliteQueryBuilder);
-                let mut stmt = conn.prepare(sql.as_str())?;
-                let mut rows = stmt.query(&*values.as_params())?;
-                let post = rows.next()?.map(|row| Post::from(row));
-
-                Ok(post)
-            })
-            .await?)
-    }
-
-    pub async fn fetch_unsent_post_with_media_type(
-        &self,
-        media_type: MediaType,
-    ) -> anyhow::Result<Option<Post>> {
-        Ok(self
-            .conn
-            .call(move |conn| {
-                let (sql, values) = Query::select()
-                    .columns([
-                        PostSchema::Id,
-                        PostSchema::MediaType,
-                        PostSchema::FileId,
-                        PostSchema::Sent,
-                        PostSchema::AddedDatetime,
-                        PostSchema::ImageHash,
-                    ])
-                    .from(PostSchema::Table)
-                    .cond_where(Expr::col(PostSchema::Sent).eq(false))
-                    .and_where(Expr::col(PostSchema::MediaType).eq(media_type))
-                    .build_rusqlite(SqliteQueryBuilder);
-                let mut stmt = conn.prepare(sql.as_str())?;
-                let mut rows = stmt.query(&*values.as_params())?;
-                let post = rows.next()?.map(|row| Post::from(row));
-
-                Ok(post)
-            })
-            .await?)
-    }
-
-    pub async fn create_upload_task(&self, upload_task: UploadTask) -> anyhow::Result<()> {
-        self.conn
-            .call(move |conn| {
-                let (sql, values) = Query::insert()
-                    .into_table(UploadTaskSchema::Table)
-                    .columns([
-                        UploadTaskSchema::Id,
-                        UploadTaskSchema::MediaType,
-                        UploadTaskSchema::Data,
-                        UploadTaskSchema::Processed,
-                        UploadTaskSchema::ImageHash,
-                    ])
-                    .values_panic([
-                        Uuid::now_v7().into(),
-                        upload_task.media_type.into(),
-                        upload_task.data.into(),
-                        upload_task.processed.into(),
-                        upload_task.image_hash.into(),
-                    ])
-                    .build_rusqlite(SqliteQueryBuilder);
-
-                conn.execute(sql.as_str(), &*values.as_params())?;
-                Ok(())
-            })
-            .await?;
-        self.upload_task_added.notify_one();
-        Ok(())
-    }
-
-    pub async fn mark_complete_upload_task(&self, upload_task: &UploadTask) -> anyhow::Result<()> {
-        let id = upload_task.id.clone().unwrap();
-        self.conn
-            .call(move |conn| {
-                let (sql, values) = Query::update()
-                    .table(UploadTaskSchema::Table)
-                    .values([
-                        (UploadTaskSchema::Processed, true.into()),
-                        (UploadTaskSchema::Data, "".into()),
-                    ])
-                    .cond_where(Expr::col(UploadTaskSchema::Id).eq(id))
-                    .build_rusqlite(SqliteQueryBuilder);
-
-                conn.execute(sql.as_str(), &*values.as_params())?;
-                Ok(())
-            })
-            .await?;
-        Ok(())
+        self.conn.lock().await.transaction(|conn| {
+            Ok(
+                diesel::insert_into(upload_tasks::table)
+                    .values(new_post)
+                    .returning(UploadTask::as_returning())
+                    .get_result(conn)
+                    .expect("error saving new upload task")
+            )
+        })
     }
 
     pub async fn fetch_unprocessed_upload_task(&self) -> anyhow::Result<Option<UploadTask>> {
-        Ok(self
-            .conn
-            .call(move |conn| {
-                let (sql, values) = Query::select()
-                    .columns([
-                        UploadTaskSchema::Id,
-                        UploadTaskSchema::MediaType,
-                        UploadTaskSchema::Data,
-                        UploadTaskSchema::Processed,
-                        UploadTaskSchema::ImageHash,
-                    ])
-                    .from(UploadTaskSchema::Table)
-                    .cond_where(Expr::col(UploadTaskSchema::Processed).eq(false))
-                    .build_rusqlite(SqliteQueryBuilder);
-                let mut stmt = conn.prepare(sql.as_str())?;
-                let mut rows = stmt.query(&*values.as_params())?;
-                let upload_task = rows.next()?.map(|row| UploadTask::from(row));
+        use crate::database::schema::upload_tasks::dsl::{upload_tasks, is_processed};
 
-                Ok(upload_task)
-            })
-            .await?)
+        self.conn.lock().await.transaction(|conn| {
+            Ok(
+                upload_tasks
+                    .filter(is_processed.eq(false))
+                    .limit(1)
+                    .select(UploadTask::as_select())
+                    .load(conn)
+                    .expect("error fetching upload tasks")
+                    .pop()
+            )
+        })
+    }
+
+    pub async fn mark_complete_upload_task(&self, id: Uuid) -> anyhow::Result<()> {
+        use crate::database::schema::upload_tasks::dsl::{upload_tasks, is_processed, processed_datetime};
+
+        self.conn.lock().await.transaction(|conn| {
+            diesel::update(upload_tasks.find(UUID::from(id)))
+                .set((
+                     is_processed.eq(true),
+                     processed_datetime.eq(Utc::now().naive_utc())
+                ))
+                .execute(conn)
+                .expect("error marking upload task as complete");
+            Ok(())
+        })
     }
 }

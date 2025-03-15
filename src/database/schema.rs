@@ -1,36 +1,42 @@
-use sea_query::Iden;
+// @generated automatically by Diesel CLI.
 
-#[derive(Iden)]
-pub enum Post {
-    Table,
-    Id,
-    MediaType,
-    FileId,
-    Sent,
-    AddedDatetime,
-    ImageHash,
+diesel::table! {
+    post_message_ids (rowid) {
+        rowid -> Integer,
+        chat_id -> BigInt,
+        message_id -> Integer,
+        post_id -> Text,
+    }
 }
 
-#[derive(Iden)]
-pub enum UploadTask {
-    Table,
-    Id,
-    MediaType,
-    Data,
-    Processed,
-    ImageHash,
+diesel::table! {
+    posts (id) {
+        id -> Text,
+        media_type -> Text,
+        file_id -> Text,
+        is_sent -> Bool,
+        created_datetime -> Timestamp,
+        sent_datetime -> Nullable<Timestamp>,
+        image_hash -> Nullable<Text>,
+    }
 }
 
-#[derive(Iden)]
-pub enum PostMessageIds {
-    Table,
-    ChatId,
-    MessageId,
-    PostId,
+diesel::table! {
+    upload_tasks (id) {
+        id -> Text,
+        media_type -> Text,
+        data -> Binary,
+        is_processed -> Bool,
+        created_datetime -> Timestamp,
+        processed_datetime -> Nullable<Timestamp>,
+        image_hash -> Nullable<Text>,
+    }
 }
 
-#[derive(Iden)]
-pub enum State {
-    Table,
-    LastSent,
-}
+diesel::joinable!(post_message_ids -> posts (post_id));
+
+diesel::allow_tables_to_appear_in_same_query!(
+    post_message_ids,
+    posts,
+    upload_tasks,
+);
