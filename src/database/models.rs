@@ -1,11 +1,13 @@
 use chrono::NaiveDateTime;
-use diesel::backend::Backend;
-use diesel::deserialize::FromSql;
-use diesel::prelude::*;
-use diesel::serialize::{IsNull, Output, ToSql};
-use diesel::sql_types::Text;
-use diesel::sqlite::Sqlite;
-use diesel::{AsExpression, FromSqlRow, deserialize, serialize};
+use diesel::{
+    AsExpression, FromSqlRow,
+    backend::Backend,
+    deserialize::{self, FromSql},
+    prelude::*,
+    serialize::{self, IsNull, Output, ToSql},
+    sql_types::Text,
+    sqlite::Sqlite,
+};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use uuid::Uuid;

@@ -1,9 +1,13 @@
-use crate::config::Config;
-use crate::database::{Database, MediaType, Post};
+use crate::{
+    config::Config,
+    database::{Database, MediaType, Post},
+};
 use std::ops::Add;
 use std::sync::Arc;
-use teloxide::prelude::*;
-use teloxide::types::{InputFile, InputMedia, InputMediaPhoto};
+use teloxide::{
+    prelude::*,
+    types::{InputFile, InputMedia, InputMediaPhoto},
+};
 use tokio::time::Instant;
 
 pub async fn run_sender(bot: Bot, db: Arc<Database>, cfg: Config) {

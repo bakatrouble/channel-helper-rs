@@ -1,9 +1,13 @@
-use crate::config::Config;
-use crate::database::{Database, MediaType, UploadTask};
+use crate::{
+    config::Config,
+    database::{Database, MediaType, UploadTask},
+};
 use std::sync::Arc;
-use teloxide::RequestError;
-use teloxide::prelude::*;
-use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup, InputFile};
+use teloxide::{
+    RequestError,
+    prelude::*,
+    types::{InlineKeyboardButton, InlineKeyboardMarkup, InputFile},
+};
 use uuid::Uuid;
 
 pub async fn run_uploader(bot: Bot, db: Arc<Database>, cfg: Config) -> anyhow::Result<()> {

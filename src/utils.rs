@@ -1,5 +1,4 @@
-use imghash::ImageHasher;
-use imghash::perceptual::PerceptualHasher;
+use imghash::{ImageHasher, perceptual::PerceptualHasher};
 use reqwest::Response;
 use teloxide::types::File;
 

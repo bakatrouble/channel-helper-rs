@@ -1,14 +1,8 @@
 use crate::database::Database;
-use std::error::Error;
 use std::sync::Arc;
-use teloxide::prelude::*;
-use teloxide::types::ReplyParameters;
+use teloxide::{prelude::*, types::ReplyParameters};
 
-pub async fn handle_del(
-    bot: Bot,
-    message: Message,
-    db: Arc<Database>,
-) -> Result<(), Box<dyn Error + Sync + Send>> {
+pub async fn handle_del(bot: Bot, message: Message, db: Arc<Database>) -> anyhow::Result<()> {
     let Some(reply_message) = message.reply_to_message() else {
         let reply_parameters = ReplyParameters::new(message.id);
         bot.send_message(message.chat.id, "Reply required")

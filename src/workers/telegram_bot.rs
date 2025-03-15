@@ -1,15 +1,18 @@
-use crate::config::Config;
-use crate::database::Database;
-use crate::telegram_handlers::{
-    handle_animation, handle_del, handle_photo, handle_unknown, handle_video,
+use crate::{
+    config::Config,
+    database::Database,
+    telegram_handlers::{handle_animation, handle_del, handle_photo, handle_unknown, handle_video},
 };
 use std::sync::Arc;
-use teloxide::dispatching::{Dispatcher, UpdateFilterExt};
-use teloxide::dptree::case;
-use teloxide::macros::BotCommands;
-use teloxide::prelude::*;
-use teloxide::types::ReplyParameters;
-use teloxide::{Bot, dptree};
+use teloxide::{
+    Bot,
+    dispatching::{Dispatcher, UpdateFilterExt},
+    dptree,
+    dptree::case,
+    macros::BotCommands,
+    prelude::*,
+    types::ReplyParameters,
+};
 
 #[derive(BotCommands, Clone, Debug)]
 #[command(rename_rule = "lowercase")]

@@ -1,18 +1,14 @@
-use crate::config::Config;
-use crate::database::{Database, MediaType};
-use crate::utils::image_hash;
-use axum::extract::State;
-use axum::http::Method;
-use axum::routing::post;
-use axum::{Json, Router};
-use base64::Engine;
-use base64::prelude::BASE64_STANDARD;
-use image::ImageFormat;
-use image::imageops::FilterType;
+use crate::{
+    config::Config,
+    database::{Database, MediaType},
+    utils::image_hash,
+};
+use axum::{Json, Router, extract::State, http::Method, routing::post};
+use base64::{Engine, prelude::BASE64_STANDARD};
+use image::{ImageFormat, imageops::FilterType};
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
-use std::io::Cursor;
-use std::sync::Arc;
+use std::{io::Cursor, sync::Arc};
 use tokio::net::TcpListener;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};

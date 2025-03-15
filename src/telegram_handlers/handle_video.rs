@@ -1,12 +1,8 @@
 use crate::database::{Database, MediaType};
-use std::error::Error;
 use std::sync::Arc;
 use teloxide::prelude::*;
 
-pub async fn handle_video(
-    message: Message,
-    db: Arc<Database>,
-) -> Result<(), Box<dyn Error + Sync + Send>> {
+pub async fn handle_video(message: Message, db: Arc<Database>) -> anyhow::Result<()> {
     let file_meta = &message.video().unwrap().file;
 
     let create_post_future = db.create_post(

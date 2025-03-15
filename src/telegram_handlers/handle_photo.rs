@@ -1,15 +1,15 @@
-use crate::database::{Database, MediaType};
-use crate::utils::{download_file, image_hash};
-use std::error::Error;
+use crate::{
+    database::{Database, MediaType},
+    utils::{download_file, image_hash},
+};
 use std::sync::Arc;
-use teloxide::types::{InputFile, ReactionType, ReplyParameters};
-use teloxide::{Bot, prelude::*};
+use teloxide::{
+    Bot,
+    prelude::*,
+    types::{InputFile, ReactionType, ReplyParameters},
+};
 
-pub async fn handle_photo(
-    bot: Bot,
-    message: Message,
-    db: Arc<Database>,
-) -> Result<(), Box<dyn Error + Sync + Send>> {
+pub async fn handle_photo(bot: Bot, message: Message, db: Arc<Database>) -> anyhow::Result<()> {
     let reply_parameters = ReplyParameters::new(message.id);
 
     let file_meta = &message.photo().unwrap().last().unwrap().file;
