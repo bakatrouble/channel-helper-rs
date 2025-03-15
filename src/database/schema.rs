@@ -18,6 +18,7 @@ diesel::table! {
         created_datetime -> Timestamp,
         sent_datetime -> Nullable<Timestamp>,
         image_hash -> Nullable<Text>,
+        deleted -> Bool,
     }
 }
 
@@ -35,8 +36,4 @@ diesel::table! {
 
 diesel::joinable!(post_message_ids -> posts (post_id));
 
-diesel::allow_tables_to_appear_in_same_query!(
-    post_message_ids,
-    posts,
-    upload_tasks,
-);
+diesel::allow_tables_to_appear_in_same_query!(post_message_ids, posts, upload_tasks,);

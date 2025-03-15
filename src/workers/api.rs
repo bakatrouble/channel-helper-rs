@@ -12,11 +12,19 @@ use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 use std::sync::Arc;
+use axum::http::Method;
 use tokio::net::TcpListener;
+use tower::ServiceBuilder;
+use tower_http::cors::{Any, CorsLayer};
 
 pub async fn run_server(cfg: Config, db: Arc<Database>) -> anyhow::Result<()> {
+    let cors = CorsLayer::new()
+        .allow_methods([Method::POST])
+        .allow_origin(Any);
+
     let app = Router::new()
         .route("/post_photo", post(post_photo))
+        .layer(ServiceBuilder::new().layer(cors))
         .with_state(db);
 
     let listener = TcpListener::bind(format!("0.0.0.0:{}", cfg.api_port.unwrap())).await?;
@@ -124,7 +132,10 @@ async fn post_photo(
         .write_to(&mut Cursor::new(photo.as_mut_slice()), ImageFormat::Jpeg)
         .unwrap();
 
-    match db.create_upload_task(MediaType::Photo, photo, Some(hash)).await {
+    match db
+        .create_upload_task(MediaType::Photo, photo, Some(hash))
+        .await
+    {
         Ok(_) => (
             StatusCode::OK,
             Json(PostMediaResponse::Ok(PostMediaResponseSuccess {
@@ -136,99 +147,3 @@ async fn post_photo(
         }
     }
 }
-
-/*async fn post_video(
-    State(db): State<Arc<Database>>,
-    Json(payload): Json<PostMediaRequest>,
-) -> (StatusCode, Json<PostMediaResponse>) {
-    let video = match payload {
-        PostMediaRequest::Base64(body) => match BASE64_STANDARD.decode(body.base64) {
-            Ok(v) => v,
-            Err(e) => {
-                return post_media_error!("Base64 decode error: {e:?}", false);
-            }
-        },
-        PostMediaRequest::Url(body) => {
-            let bytes = match reqwest::get(body.url).await {
-                Ok(v) => v.bytes(),
-                Err(e) => {
-                    return post_media_error!("Request error: {e:?}", false);
-                }
-            };
-            match bytes.await {
-                Ok(v) => v.to_vec(),
-                Err(e) => {
-                    return post_media_error!("Video download error: {e:?}", false);
-                }
-            }
-        }
-    };
-
-    let upload_task = UploadTask {
-        id: None,
-        media_type: MediaType::Video,
-        data: video,
-        processed: false,
-        image_hash: None,
-    };
-
-    match db.create_upload_task(upload_task).await {
-        Ok(_) => (
-            StatusCode::OK,
-            Json(PostMediaResponse::Ok(PostMediaResponseSuccess {
-                success: true,
-            })),
-        ),
-        Err(e) => {
-            post_media_error!("Database error: {e:?}", false)
-        }
-    }
-}
-
-async fn post_animation(
-    State(db): State<Arc<Database>>,
-    Json(payload): Json<PostMediaRequest>,
-) -> (StatusCode, Json<PostMediaResponse>) {
-    let animation = match payload {
-        PostMediaRequest::Base64(body) => match BASE64_STANDARD.decode(body.base64) {
-            Ok(v) => v,
-            Err(e) => {
-                return post_media_error!("Base64 decode error: {e:?}", false);
-            }
-        },
-        PostMediaRequest::Url(body) => {
-            let bytes = match reqwest::get(body.url).await {
-                Ok(v) => v.bytes(),
-                Err(e) => {
-                    return post_media_error!("Request error: {e:?}", false);
-                }
-            };
-            match bytes.await {
-                Ok(v) => v.to_vec(),
-                Err(e) => {
-                    return post_media_error!("Animation download error: {e:?}", false);
-                }
-            }
-        }
-    };
-
-    let upload_task = UploadTask {
-        id: None,
-        media_type: MediaType::Animation,
-        data: animation,
-        processed: false,
-        image_hash: None,
-    };
-
-    match db.create_upload_task(upload_task).await {
-        Ok(_) => (
-            StatusCode::OK,
-            Json(PostMediaResponse::Ok(PostMediaResponseSuccess {
-                success: true,
-            })),
-        ),
-        Err(e) => {
-            post_media_error!("Database error: {e:?}", false)
-        }
-    }
-}*/

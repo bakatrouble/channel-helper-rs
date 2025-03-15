@@ -1,13 +1,13 @@
-use std::fmt::{Display, Formatter};
-use std::str::FromStr;
-use chrono::{NaiveDateTime};
+use chrono::NaiveDateTime;
 use diesel::backend::Backend;
 use diesel::deserialize::FromSql;
-use diesel::{deserialize, serialize, AsExpression, FromSqlRow};
 use diesel::prelude::*;
 use diesel::serialize::{IsNull, Output, ToSql};
 use diesel::sql_types::Text;
 use diesel::sqlite::Sqlite;
+use diesel::{AsExpression, FromSqlRow, deserialize, serialize};
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 use uuid::Uuid;
 
 #[derive(Debug, Default, Clone, Copy, FromSqlRow, AsExpression, Hash, Eq, PartialEq)]
@@ -44,9 +44,7 @@ impl From<UUID> for Uuid {
 
 impl From<Uuid> for UUID {
     fn from(value: Uuid) -> Self {
-        Self {
-            0: value,
-        }
+        Self { 0: value }
     }
 }
 
@@ -89,13 +87,11 @@ where
 
 impl Display for MediaType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(
-            match self {
-                MediaType::Photo => "photo",
-                MediaType::Video => "video",
-                MediaType::Animation => "anim",
-            }
-        )
+        f.write_str(match self {
+            MediaType::Photo => "photo",
+            MediaType::Video => "video",
+            MediaType::Animation => "anim",
+        })
     }
 }
 

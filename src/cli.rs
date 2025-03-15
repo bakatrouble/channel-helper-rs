@@ -25,13 +25,13 @@ pub fn parse_args() -> Config {
                 .value_parser(value_parser!(i64))
                 .required(true),
         )
-        .arg(
-            arg!(-a --admin <ADMIN_ID>)
-                .id("admin_id")
-                .env("ADMIN_ID")
-                .value_parser(value_parser!(i64))
-                .required(true),
-        )
+        // .arg(
+        //     arg!(-a --admin <ADMIN_ID>)
+        //         .id("admin_id")
+        //         .env("ADMIN_ID")
+        //         .value_parser(value_parser!(i64))
+        //         .required(true),
+        // )
         .arg(
             arg!(-s --senders <ALLOWED_SENDERS>)
                 .id("allowed_senders")
@@ -40,14 +40,14 @@ pub fn parse_args() -> Config {
                 .required(true),
         )
         .arg(
-            arg!(-i --interval)
+            arg!(-i - -interval)
                 .id("interval")
                 .env("INTERVAL")
                 .value_parser(humantime::parse_duration)
                 .required(true),
         )
         .arg(
-            arg!(-g --"group-threshold")
+            arg!(-g - -"group-threshold")
                 .id("group_threshold")
                 .env("GROUP_THRESHOLD")
                 .action(ArgAction::Set)
@@ -81,7 +81,7 @@ pub fn parse_args() -> Config {
     let bot_token = matches.get_one::<String>("bot_token").unwrap();
     let db_name = matches.get_one::<String>("db_name").unwrap();
     let target_chat_id = matches.get_one::<i64>("target_chat_id").unwrap();
-    let admin_id = matches.get_one::<i64>("admin_id").unwrap();
+    // let admin_id = matches.get_one::<i64>("admin_id").unwrap();
     let allowed_sender_chats: Vec<i64> = matches
         .get_many::<String>("allowed_senders")
         .unwrap()
@@ -96,7 +96,7 @@ pub fn parse_args() -> Config {
         bot_token: bot_token.clone(),
         db_name: db_name.clone(),
         target_chat_id: target_chat_id.clone(),
-        admin_id: admin_id.clone(),
+        // admin_id: admin_id.clone(),
         allowed_sender_chats,
         interval: interval.clone(),
         group_threshold: group_threshold.map(|v| *v).unwrap_or(0),

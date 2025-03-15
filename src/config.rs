@@ -5,7 +5,7 @@ pub struct Config {
     pub bot_token: String,
     pub db_name: String,
     pub target_chat_id: i64,
-    pub admin_id: i64,
+    // pub admin_id: i64,
     pub allowed_sender_chats: Vec<i64>,
     pub interval: Duration,
     pub group_threshold: i64,

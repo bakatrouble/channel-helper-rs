@@ -91,7 +91,8 @@ async fn upload(bot: Bot, chat_id: i64, db: Arc<Database>, upload_task: UploadTa
                     Some(upload_task.image_hash.clone().unwrap()),
                     msg.chat.id.0,
                     msg.id.0,
-                ).await
+                )
+                .await
             {
                 Ok(_) => {}
                 Err(e) => {

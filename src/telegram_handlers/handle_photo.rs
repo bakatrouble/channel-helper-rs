@@ -49,7 +49,10 @@ pub async fn handle_photo(
 
                 match bot
                     .send_photo(message.chat.id, InputFile::file_id(post.file_id.clone()))
-                    .caption(format!("Duplicate from {}", post.created_datetime))
+                    .caption(format!(
+                        "Duplicate from {}",
+                        post.created_datetime.and_utc().to_rfc3339()
+                    ))
                     .reply_parameters(reply_parameters)
                     .await
                 {

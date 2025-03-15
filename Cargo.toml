@@ -22,3 +22,5 @@ base64 = "0.22.1"
 humantime = "2.2.0"
 diesel = { version = "2.2.8", features = ["sqlite", "returning_clauses_for_sqlite_3_35", "uuid", "time", "chrono"] }
 diesel_migrations = { version = "2.2.0", features = ["sqlite"] }
+tower-http = { version = "0.6.2", features = ["cors"] }
+tower = "0.5.2"
