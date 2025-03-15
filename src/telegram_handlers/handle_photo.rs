@@ -32,51 +32,53 @@ pub async fn handle_photo(
 
     let hash = image_hash(download_resp.bytes().await.unwrap().as_ref())?;
 
-    match db.get_post_by_hash(hash.clone()).await {
-        Ok(Some(post)) => {
-            log::warn!("Hash {hash} already exists");
+    if !message.caption().unwrap_or("").contains("force") {
+        match db.get_post_by_hash(hash.clone()).await {
+            Ok(Some(post)) => {
+                log::warn!("Hash {hash} already exists");
 
-            match db
-                .add_message_id_for_post(post.id, message.chat.id.0, message.id.0)
-                .await
-            {
-                Ok(_) => {}
-                Err(e) => {
-                    log::error!("Error saving post message id: {e:?}");
-                }
-            }
-
-            match bot
-                .send_photo(message.chat.id, InputFile::file_id(post.file_id.clone()))
-                .caption(format!("Duplicate from {}", post.created_datetime))
-                .reply_parameters(reply_parameters)
-                .await
-            {
-                Ok(msg) => {
-                    log::info!("Sent duplicate notification");
-
-                    match db
-                        .add_message_id_for_post(post.id, msg.chat.id.0, msg.id.0)
-                        .await
-                    {
-                        Ok(_) => {}
-                        Err(e) => {
-                            log::error!("Error saving post message id: {e:?}");
-                        }
+                match db
+                    .add_message_id_for_post(post.id, message.chat.id.0, message.id.0)
+                    .await
+                {
+                    Ok(_) => {}
+                    Err(e) => {
+                        log::error!("Error saving post message id: {e:?}");
                     }
                 }
-                Err(e) => {
-                    log::error!("Error sending duplicate notification: {e:?}");
-                    return Err(e.into());
-                }
-            }
 
-            return Ok(());
-        }
-        Ok(None) => {}
-        Err(e) => {
-            log::error!("Error checking hash presence: {e:?}");
-            return Err(e.into());
+                match bot
+                    .send_photo(message.chat.id, InputFile::file_id(post.file_id.clone()))
+                    .caption(format!("Duplicate from {}", post.created_datetime))
+                    .reply_parameters(reply_parameters)
+                    .await
+                {
+                    Ok(msg) => {
+                        log::info!("Sent duplicate notification");
+
+                        match db
+                            .add_message_id_for_post(post.id, msg.chat.id.0, msg.id.0)
+                            .await
+                        {
+                            Ok(_) => {}
+                            Err(e) => {
+                                log::error!("Error saving post message id: {e:?}");
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Error sending duplicate notification: {e:?}");
+                        return Err(e.into());
+                    }
+                }
+
+                return Ok(());
+            }
+            Ok(None) => {}
+            Err(e) => {
+                log::error!("Error checking hash presence: {e:?}");
+                return Err(e.into());
+            }
         }
     }
 
